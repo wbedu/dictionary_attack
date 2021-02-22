@@ -31,7 +31,7 @@ if __name__ == "__main__":
         help="wordlist file path",
         required=True)
     parser.add_argument("-t", "--treadcount",
-        help="wordlist file path",
+        help="thread count (default=4)",
         default=4,
         required=False)
     args = parser.parse_args()
