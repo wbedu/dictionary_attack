@@ -4,7 +4,8 @@ import time
 import argparse
 import sys
 import hashlib
-
+from concurrent.futures.thread import ThreadPoolExecutor
+from concurrent.futures import as_completed
 HASH_GUESSES = {
     128: hashlib.sha512,
     96: hashlib.sha384,
@@ -59,8 +60,15 @@ def read_input_file(filename:str) -> list:
     return content
 
 
+def hash_attempt(password, credential):
+    return {
+        "result": credential["algo"](password.encode('utf-8')).hexdigest()
+            == credential["hash"],
+        "hash": credential["hash"],
+        "password": password
+    }
 
-def crack(credential, max_threads):
+def crack(credential:dict, max_threads:int):
     """
     returns password or None on failure
 
@@ -71,9 +79,28 @@ def crack(credential, max_threads):
             list of file lines
     """
 
-    # with concurrent.futures.ThreadPoolExecutor(max_workers = max_threads) as executor:
-    #     threads = executor.submit(number, (numbers))
-    return None
+    print("attempt {user}".format(**credential))
+    match = {
+        "result": False,
+        "hash": credential["hash"],
+        "password": None
+    }
+
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+        futures = {executor.submit(hash_attempt, password, credential)
+            for password in DICTIONARY}
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result["result"]:
+                    match = result
+                    executor.shutdown(wait=True)
+                else:
+                    del result
+            except Exception as exc:
+                print('generated an exception: %s' % (exc))
+
+    return match
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -98,3 +125,6 @@ if __name__ == "__main__":
         for shadow in shadow_list]
 
     results = [crack(credential, args.threadcount) for credential in credentials]
+
+    for result in results:
+        print(result)
