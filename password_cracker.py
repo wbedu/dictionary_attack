@@ -8,6 +8,10 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from concurrent.futures import as_completed
 
 MAX_SALT_INT = 100000
+MAX_THREADS = None;
+VERBOSITY = 0
+
+WORDLIST = None
 
 HASH_GUESSES = {
     128: hashlib.sha512,
@@ -15,10 +19,26 @@ HASH_GUESSES = {
     64: hashlib.sha256,
     56: hashlib.sha224,
     40: hashlib.sha1,
-    32: hashlib.md5,
+    32: hashlib.md5
 }
 
-def algo_heuristics(hashed_password:str):
+
+def v_print(level, *msg) -> None:
+    """
+    prints message is VERBOSITY is high enough
+
+    Args:
+        level: minimum level for message to print
+        msg: message list
+
+    Returns:
+        None
+    """
+    if(VERBOSITY >= level):
+        print(*msg)
+
+
+def algo_heuristics(hashed_password:str) -> dict:
     """
     returns best guess of algorithim used
             to hash function based on hash length
@@ -34,7 +54,6 @@ def algo_heuristics(hashed_password:str):
     try:
         guess = HASH_GUESSES[hash_len]
     except:
-        print("")
         print("Error this hash({hashed_password}) is not supported"
             .format(hashed_password), file=sys.stderr)
         return None
@@ -79,7 +98,7 @@ def hash_attempt(password, credential) -> dict:
 
 
 
-def crack(credential:dict, wordlist:list, max_threads:int) -> dict:
+def crack(credential:dict) -> dict:
     """
     returns password or None on failure
 
@@ -89,26 +108,65 @@ def crack(credential:dict, wordlist:list, max_threads:int) -> dict:
     Returns:
             list of file lines
     """
-    match = {
+
+    v_print(1, "normal search for password for {user}".format(**credential))
+    for password in WORDLIST:
+        attempt = hash_attempt(password, credential)
+        v_print(3, "user:{user},attempted_password: {password}"
+            .format(**attempt))
+        if attempt["result"]:
+            v_print(2, "cracked {user}:{password}".format(**attempt))
+            return attempt
+        del attempt
+
+    v_print(2, "{user} normal password check failed. attempting salts"
+        .format(**credential))
+
+    v_print(2, "attempting cracking with salts for user:{user}"
+            .format(**credential))
+
+    word_index = 0
+    while word_index < WORDLIST_LENGTH:
+        salt_list = salted_password_generator(WORDLIST[word_index])
+        for password in salt_list:
+            v_print(3, "user:{0},attempted_password: {1}"
+                .format(credential["user"], password))
+            attempt = hash_attempt(password, credential)
+            if attempt["result"]:
+                v_print(2, "cracked {user}:{password}".format(**attempt))
+                return attempt
+
+    return {
         **credential,
         "result": False
     }
 
-    with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures = {executor.submit(hash_attempt, password, credential)
-            for password in wordlist}
+
+def crack_users(credentials:list) -> list:
+    """
+    returns password or None on failure
+
+    Args:
+        credential: an item from the pased shadowfile list
+
+    Returns:
+            list of file lines
+    """
+
+    completed_results = []
+
+    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+        futures = {executor.submit(crack, credential)
+            for credential in credentials}
         for future in as_completed(futures):
             try:
                 result = future.result()
-                if result["result"]:
-                    match = result
-                    executor.shutdown(wait=True)
-                else:
-                    del result
+                completed_results.append(result)
             except Exception as exc:
                 print('generated an exception: %s' % (exc))
 
-    return match
+    return completed_results
+
 
 def salted_password_generator(password):
     """
@@ -144,45 +202,55 @@ if __name__ == "__main__":
         default=4,
         type=int,
         required=False)
+    parser.add_argument("-v","--verbose",
+        help="verbosity",
+        action='count',
+        default=0,
+        required=False)
     args = parser.parse_args()
 
-    default_wordlist = read_input_file(args.wordlist)
-    default_wordlist_length = len(default_wordlist)
+    VERBOSITY = args.verbose
+    MAX_THREADS = args.threadcount
+    WORDLIST = read_input_file(args.wordlist)
+    WORDLIST_LENGTH = len(WORDLIST)
     shadow_list = read_input_file(args.shadowfile)
 
+    v_print(1,"VERBOSITY: {0}".format(VERBOSITY))
     # parse shadow
+
+    v_print(1, "attempting unmodified wordlist\n")
     credentials = [{"user": shadow.split(":")[0], "hash": shadow.split(":")[1],
         "algo": algo_heuristics(shadow.split(":")[1])}
         for shadow in shadow_list]
 
-    results = [crack(credential, default_wordlist,
-        args.threadcount) for credential in credentials]
-
+    results = crack_users(credentials)
+    # results = [crack(credential, default_wordlist,
+    #     args.threadcount) for credential in credentials]
+    #
     successful_results = [result for result in results if result["result"]]
     failing_results = [result for result in results if not result["result"]]
-    for result in successful_results:
-        print(result)
-
-    #attemp salted hashes
-    for credential in failing_results:
-        print("attempt {user}".format(**credential))
-        word_index = 0
-        while word_index < default_wordlist_length:
-            print("attempting wordlist with word {0}"
-                .format(word_index))
-            salt_list = salted_password_generator(default_wordlist[word_index])
-            attempt = crack(credential, salt_list, args.threadcount)
-            if attempt["result"]:
-                successful_results.append(attempt)
-                word_index = default_wordlist_length
-            word_index +=1
+    #
+    # for credential in successful_results:
+    #     v_print(1, "successfully cracked {user}:{password}"
+    #         .format(**credential))
+    #
+    # v_print(2, "attempting cracking with salts")
+    # #attemp salted hashes
+    # for credential in failing_results:
+    #     v_print(2, "attempting cracking with salts for user:{user}"
+    #         .format(**credential))
+    #     word_index = 0
+    #     while word_index < default_wordlist_length:
+    #         salt_list = salted_password_generator(default_wordlist[word_index])
+    #         attempt = crack(credential, salt_list, args.threadcount)
+    #         if attempt["result"]:
+    #             successful_results.append(attempt)
+    #             word_index = default_wordlist_length
+    #         word_index +=1
 
     sort_credentials = lambda credential: credential["user"]
 
     successful_results.sort(key=sort_credentials)
     with open(args.output, 'w') as file:
-        credential_lines =[ "{user}:{password}\n".format(**credential)
-            for credential in successful_results]
-        credential_lines[-1] = credential_lines[-1].split("\n")[0]
-
-        file.writelines(credential_lines)
+        for credential in successful_results:
+            file.write("{user}:{password}\n".format(**credential))
