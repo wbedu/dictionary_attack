@@ -11,7 +11,7 @@ supports hashlib.sha512, hashlib.sha384, hashlib.sha256,hashlib.sha224, hashlib.
 ./password_cracker -w your_dictionary_file -s your_shadow_file
 ```
 
-##Arguments
+## Arguments
 ```bash
   -h, --help            show this help message and exit
 
@@ -26,6 +26,6 @@ supports hashlib.sha512, hashlib.sha384, hashlib.sha256,hashlib.sha224, hashlib.
 
   -t THREADCOUNT, --threadcount THREADCOUNT
                         #thread count (default=4)
-                        
+
   -v, --verbose         #verbosity level (-vvvv is level 4)
 ```
