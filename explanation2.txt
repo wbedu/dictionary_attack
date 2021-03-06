@@ -1,0 +1,11 @@
+as you can tell i didn't finish this part but for points i can explain how I
+intended to solve it.
+
+in most linux distros there is a file /usr/share/dict/words that is a list of
+words from the english dictionary. My goal was to generate all of the possible
+alphabet mappings (i think 26 choose 2 maps???) but my brain shorted and i
+forgot everything i learned from stats.
+
+The for each of the mappings, i was going to attempt that on the encrypted text
+if  more at least 60% of the words in the output match exist in the words file.
+Then it's probably my plain text file.

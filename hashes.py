@@ -15,8 +15,5 @@ for item in algos:
 
 res.sort(reverse=True, key=myFunc)
 
-
-
-
 for item in ["{length}: hashlib.{name}".format(**item) for item in res]:
     print(item)
