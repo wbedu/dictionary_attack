@@ -29,3 +29,10 @@ supports hashlib.sha512, hashlib.sha384, hashlib.sha256,hashlib.sha224, hashlib.
 
   -v, --verbose         #verbosity level (-vvvv is level 4)
 ```
+## Install dependencies
+
+ 1. install python3
+
+ 2. run 
+  
+      `pip3 install -r ./requirements.txt`
